@@ -1,0 +1,38 @@
+commit ad697be54185a7ca1fb6572c6f85b810b235a62e
+Author: Lauri Kasanen <curaga@operamail.com>
+Date:   Tue Oct 8 16:40:20 2013 +0300
+
+    wget: make default timeout configurable
+
+diff --git a/networking/Config.src b/networking/Config.src
+index ca0ddcd..e493b09 100644
+--- a/networking/Config.src
++++ b/networking/Config.src
+@@ -983,6 +983,14 @@ config FEATURE_WGET_TIMEOUT
+ 	  FEATURE_WGET_LONG_OPTIONS is also enabled, the --timeout option
+ 	  will work in addition to -T.
+ 
++config WGET_DEFAULT_TIMEOUT
++	int "Default wget timeout"
++	default 900
++	range 1 2000
++	depends on FEATURE_WGET_TIMEOUT
++	help
++	  The default time, in seconds, to wait before wget gives up.
++
+ config ZCIP
+ 	bool "zcip"
+ 	default y
+diff --git a/networking/wget.c b/networking/wget.c
+index d6c509e..55ba4e7 100644
+--- a/networking/wget.c
++++ b/networking/wget.c
+@@ -970,7 +970,7 @@ int wget_main(int argc UNUSED_PARAM, char **argv)
+ 	INIT_G();
+ 
+ #if ENABLE_FEATURE_WGET_TIMEOUT
+-	G.timeout_seconds = 900;
++	G.timeout_seconds = CONFIG_WGET_DEFAULT_TIMEOUT;
+ 	signal(SIGALRM, alarm_handler);
+ #endif
+ 	G.proxy_flag = "on";   /* use proxies if env vars are set */

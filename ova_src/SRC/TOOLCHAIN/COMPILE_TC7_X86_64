@@ -1,0 +1,1293 @@
+tc7_x86_64 (on corepure64)
+
+tce-load -i compiletc perl5 ncurses-dev bash cloog-dev mpc-dev udev-lib-dev texinfo coreutils
+
+export TC=/mnt/tc
+
+sudo mkdir $TC
+sudo mount /dev/sdb6 $TC
+
+sudo mkdir $TC/tools
+sudo chown tc:staff $TC/tools
+
+sudo ln -s $TC/tools / [***]
+
+sudo mkdir $TC/sources
+sudo chown tc:staff $TC/sources
+
+cat > ~/.bash_profile << "EOF"
+exec env -i HOME=$HOME TERM=$TERM PS1='\u:\w\$ ' /bin/bash
+EOF
+
+cat > ~/.bashrc << "EOF"
+set +h
+umask 022
+TC=/mnt/tc
+LC_ALL=POSIX
+TC_TGT=x86_64-tc-linux-gnu
+PATH=/tools/bin:/usr/local/bin:/bin:/usr/bin
+export TC LC_ALL TC_TGT PATH
+EOF
+
+source ~/.bash_profile
+
+----------
+
+cd binutils-2.25.1
+
+mkdir ../binutils-build
+cd ../binutils-build
+
+../binutils-2.25.1/configure --prefix=/tools --with-sysroot=$TC --with-lib-path=/tools/lib --target=$TC_TGT --disable-nls --disable-werror
+
+make [2m27.753s]
+
+mkdir /tools/lib
+ln -s lib /tools/lib64
+
+make install
+
+
+cd gcc-5.2.0
+
+tar -xf ../mpfr-3.1.3.tar.xz
+mv mpfr-3.1.3 mpfr
+tar -xf ../gmp-6.0.0a.tar.xz
+mv gmp-6.0.0 gmp
+tar -xf ../mpc-1.0.3.tar.gz
+mv mpc-1.0.3 mpc
+
+for file in $(find gcc/config -name linux64.h -o -name linux.h -o -name sysv4.h)
+do
+  cp $file $file.orig
+  sed -e 's@/lib\(64\)\?\(32\)\?/ld@/tools&@g' -e 's@/usr@/tools@g' $file.orig > $file
+  echo '
+#undef STANDARD_STARTFILE_PREFIX_1
+#undef STANDARD_STARTFILE_PREFIX_2
+#define STANDARD_STARTFILE_PREFIX_1 "/tools/lib/"
+#define STANDARD_STARTFILE_PREFIX_2 ""' >> $file
+  touch $file.orig
+done
+
+mkdir ../gcc-build
+cd ../gcc-build
+
+../gcc-5.2.0/configure --target=$TC_TGT --prefix=/tools --with-glibc-version=2.11 --with-sysroot=$TC --with-newlib --without-headers --with-local-prefix=/tools --with-native-system-header-dir=/tools/include --disable-nls --disable-shared --disable-multilib --disable-decimal-float --disable-threads --disable-libatomic --disable-libgomp --disable-libquadmath --disable-libssp --disable-libvtv --disable-libstdcxx --enable-languages=c,c++
+
+make [21m40.529s]
+make install
+
+
+cd linux-4.2.1
+
+make mrproper
+
+make INSTALL_HDR_PATH=dest headers_install
+cp -r dest/include/* /tools/include
+
+
+cd glibc-2.22
+
+patch -Np1 -i ../glibc-2.22-upstream_i386_fix-1.patch
+
+mkdir ../glibc-build
+cd ../glibc-build
+
+../glibc-2.22/configure --prefix=/tools --host=$TC_TGT --build=$(../glibc-2.22/scripts/config.guess) --disable-profile --enable-kernel=3.8.10 --enable-obsolete-rpc --with-headers=/tools/include libc_cv_forced_unwind=yes libc_cv_ctors_header=yes libc_cv_c_cleanup=yes
+
+make [9m8.093s]
+make install
+
+echo 'int main(){}' > dummy.c
+$TC_TGT-gcc dummy.c
+readelf -l a.out | grep ': /tools'
+
+[Requesting program interpreter: /tools/lib64/ld-linux-x86-64.so.2]
+
+rm dummy.c a.out
+
+
+cd gcc-5.2.0 (libstdc++-5.2.0)
+
+mkdir ../gcc-build
+cd ../gcc-build
+
+../gcc-5.2.0/libstdc++-v3/configure --host=$TC_TGT --prefix=/tools --disable-multilib --disable-nls --disable-libstdcxx-threads --disable-libstdcxx-pch --with-gxx-include-dir=/tools/$TC_TGT/include/c++/5.2.0
+
+make [0m41.981s]
+make install
+
+
+cd binutils-2.25.1
+
+mkdir ../binutils-build
+cd ../binutils-build
+
+CC=$TC_TGT-gcc AR=$TC_TGT-ar RANLIB=$TC_TGT-ranlib ../binutils-2.25.1/configure --prefix=/tools --disable-nls --disable-werror --with-lib-path=/tools/lib --with-sysroot
+
+make [2m13.793s]
+make install
+
+make -C ld clean
+make -C ld LIB_PATH=/usr/lib:/lib
+cp ld/ld-new /tools/bin
+
+
+cd gcc-5.2.0
+
+cat gcc/limitx.h gcc/glimits.h gcc/limity.h > `dirname $($TC_TGT-gcc -print-libgcc-file-name)`/include-fixed/limits.h
+
+for file in $(find gcc/config -name linux64.h -o -name linux.h -o -name sysv4.h)
+do
+  cp $file $file.orig
+  sed -e 's@/lib\(64\)\?\(32\)\?/ld@/tools&@g' -e 's@/usr@/tools@g' $file.orig > $file
+  echo '
+#undef STANDARD_STARTFILE_PREFIX_1
+#undef STANDARD_STARTFILE_PREFIX_2
+#define STANDARD_STARTFILE_PREFIX_1 "/tools/lib/"
+#define STANDARD_STARTFILE_PREFIX_2 ""' >> $file
+  touch $file.orig
+done
+
+tar -xf ../mpfr-3.1.3.tar.xz
+mv mpfr-3.1.3 mpfr
+tar -xf ../gmp-6.0.0a.tar.xz
+mv gmp-6.0.0 gmp
+tar -xf ../mpc-1.0.3.tar.gz
+mv mpc-1.0.3 mpc
+
+mkdir ../gcc-build
+cd ../gcc-build
+
+CC=$TC_TGT-gcc CXX=$TC_TGT-g++ AR=$TC_TGT-ar RANLIB=$TC_TGT-ranlib ../gcc-5.2.0/configure --prefix=/tools --with-local-prefix=/tools --with-native-system-header-dir=/tools/include --enable-languages=c,c++ --disable-libstdcxx-pch --disable-multilib --disable-bootstrap --disable-libgomp
+
+make [25m18.143s]
+make install
+
+ln -s gcc /tools/bin/cc
+
+echo 'int main(){}' > dummy.c
+cc dummy.c
+readelf -l a.out | grep ': /tools'
+
+[Requesting program interpreter: /tools/lib64/ld-linux-x86-64.so.2]
+
+rm dummy.c a.out
+
+
+cd ncurses-6.0
+
+sed -i s/mawk// configure
+
+./configure --prefix=/tools --with-shared --without-debug --without-ada --enable-widec --enable-overwrite
+
+make
+make install
+
+
+cd bash-4.3.30
+
+./configure --prefix=/tools --without-bash-malloc
+
+make
+make install
+
+ln -s bash /tools/bin/sh
+
+
+cd bzip2-1.0.6
+
+make
+make PREFIX=/tools install
+
+
+cd coreutils-8.24
+
+./configure --prefix=/tools --enable-install-program=hostname
+
+make
+make install
+
+
+cd diffutils-3.3
+
+./configure --prefix=/tools
+
+make
+make install
+
+
+cd file-5.24
+
+./configure --prefix=/tools
+
+make
+make install
+
+
+cd findutils-4.4.2
+
+./configure --prefix=/tools
+
+make
+make install
+
+
+cd gawk-4.1.3
+
+./configure --prefix=/tools
+
+make
+make install
+
+
+cd gettext-0.19.5.1
+
+cd gettext-tools
+EMACS="no" ./configure --prefix=/tools --disable-shared
+
+make -C gnulib-lib
+make -C intl pluralx.c
+make -C src msgfmt
+make -C src msgmerge
+make -C src xgettext
+
+cp src/msgfmt /tools/bin
+cp src/msgmerge /tools/bin
+cp src/xgettext /tools/bin
+
+
+cd grep-2.21
+
+./configure --prefix=/tools
+
+make
+make install
+
+
+cd gzip-1.6
+
+./configure --prefix=/tools
+
+make
+make install
+
+
+cd m4-1.4.17
+
+./configure --prefix=/tools
+
+make
+make install
+
+
+cd make-4.1
+
+./configure --prefix=/tools --without-guile
+
+make
+make install
+
+
+cd patch-2.7.5
+
+./configure --prefix=/tools
+
+make
+make install
+
+
+cd perl-5.22.0
+
+sh Configure -des -Dprefix=/tools -Dlibs=-lm
+
+make [2m46.588s]
+
+cp perl cpan/podlators/pod2man /tools/bin
+mkdir -p /tools/lib/perl5/5.22.0
+cp -R lib/* /tools/lib/perl5/5.22.0
+
+
+cd sed-4.2.2
+
+./configure --prefix=/tools
+
+make
+make install
+
+
+cd tar-1.28
+
+./configure --prefix=/tools
+
+make
+make install
+
+
+cd texinfo-6.0
+
+./configure --prefix=/tools
+
+make
+make install
+
+
+cd util-linux-2.27
+
+./configure --prefix=/tools --without-python --disable-makeinstall-chown --without-systemdsystemunitdir PKG_CONFIG=""
+
+make
+make install
+
+
+cd xz-5.2.1
+
+./configure --prefix=/tools
+
+make
+make install
+
+----------
+
+sudo chown -R root:root $TC/tools
+
+sudo mkdir -p $TC/dev
+sudo mkdir -p $TC/proc
+sudo mkdir -p $TC/sys
+sudo mkdir -p $TC/run
+
+sudo mknod -m 600 $TC/dev/console c 5 1
+sudo mknod -m 666 $TC/dev/null c 1 3
+
+sudo mount --bind /dev $TC/dev
+
+sudo mount -t devpts devpts $TC/dev/pts -o gid=5,mode=620
+sudo mount -t proc proc $TC/proc
+sudo mount -t sysfs sysfs $TC/sys
+sudo mount -t tmpfs tmpfs $TC/run
+
+sudo chroot "$TC" /tools/bin/env -i HOME=/root TERM="$TERM" PS1='\u:\w\$ ' PATH=/bin:/usr/bin:/sbin:/usr/sbin:/tools/bin /tools/bin/bash --login +h
+
+----------
+
+mkdir -pv /{bin,boot,etc/{opt,sysconfig},home,lib,mnt,opt}
+mkdir -pv /{media/{floppy,cdrom},sbin,srv,var}
+install -dv -m 0750 /root
+install -dv -m 1777 /tmp /var/tmp
+mkdir -pv /usr/{,local/}{bin,include,lib,sbin,src}
+mkdir -pv /usr/{,local/}share/{color,dict,doc,info,locale,man}
+mkdir -v  /usr/{,local/}share/{misc,terminfo,zoneinfo}
+mkdir -pv /usr/{,local/}share/man/man{1..8}
+
+mkdir -v /var/{log,mail,spool}
+ln -sv /run /var/run
+ln -sv /run/lock /var/lock
+mkdir -pv /var/{opt,cache,lib/{color,misc,locate},local}
+
+ln -sv /tools/bin/{bash,cat,echo,pwd,stty} /bin
+ln -sv /tools/bin/perl /usr/bin
+ln -sv /tools/lib/libgcc_s.so{,.1} /usr/lib
+ln -sv /tools/lib/libstdc++.so{,.6} /usr/lib
+sed 's/tools/usr/' /tools/lib/libstdc++.la > /usr/lib/libstdc++.la
+ln -sv bash /bin/sh
+
+ln -sv /proc/self/mounts /etc/mtab
+
+[copy tc /etc/passwd and /etc/group files to $TC/etc]
+
+exec /tools/bin/bash --login +h
+
+touch /var/log/{btmp,lastlog,wtmp}
+
+chmod -v 664  /var/log/lastlog
+chmod -v 600  /var/log/btmp
+
+----------
+
+cd linux-4.2.1
+
+make mrproper
+
+make INSTALL_HDR_PATH=dest headers_install
+find dest/include \( -name .install -o -name ..install.cmd \) -delete
+cp -rv dest/include/* /usr/include
+
+
+cd glibc-2.22
+
+patch -Np1 -i ../glibc-2.22-fhs-1.patch
+patch -Np1 -i ../glibc-2.22-upstream_i386_fix-1.patch
+
+ln -sv lib /lib64
+ln -sv lib /usr/lib64
+
+mkdir ../glibc-build
+cd ../glibc-build
+
+echo "CFLAGS += -mtune=generic -Os -pipe" > configparms
+
+../glibc-2.22/configure --prefix=/usr --libexecdir=/usr/lib/glibc --disable-profile --enable-kernel=3.8.10 --enable-obsolete-rpc --disable-werror
+
+edit config.make, config.status lib64 -> lib
+
+find . -name config.make -type f -exec sed -i 's/-O2//g' {} \;
+
+make [8m6.727s]
+
+touch /etc/ld.so.conf
+
+make install [install install_root=/tmp/pkg]
+
+cp ../glibc-2.22/nscd/nscd.conf /etc/nscd.conf
+mkdir -p /var/cache/nscd
+
+make localedata/install-locales
+
+sed -i 's@lib64/ld-linux-x86-64.so.2@lib/ld-linux-x86-64.so.2@' /usr/bin/ldd
+edit lib64 -> lib in /usr/lib/libc.so, libm.so, libpthread.so
+
+[copy tc /etc/nsswitch.conf and /etc/ld.so.conf files to $TC/etc]
+
+----------
+
+mv -v /tools/bin/{ld,ld-old}
+mv -v /tools/$(gcc -dumpmachine)/bin/{ld,ld-old}
+mv -v /tools/bin/{ld-new,ld}
+ln -sv /tools/bin/ld /tools/$(gcc -dumpmachine)/bin/ld
+
+gcc -dumpspecs | sed -e 's@/tools@@g' -e '/\*startfile_prefix_spec:/{n;s@.*@/usr/lib/ @}' -e '/\*cpp:/{n;s@$@ -isystem /usr/include@}' > `dirname $(gcc --print-libgcc-file-name)`/specs
+
+sed -i 's@lib64/ld-linux-x86-64.so.2@lib/ld-linux-x86-64.so.2@' /tools/lib/gcc/x86_64-unknown-linux-gnu/5.2.0/specs
+
+echo 'int main(){}' > dummy.c
+cc dummy.c -v -Wl,--verbose &> dummy.log
+readelf -l a.out | grep ': /lib'
+
+[Requesting program interpreter: /lib/ld-linux-x86-64.so.2]
+
+grep -o '/usr/lib.*/crt[1in].*succeeded' dummy.log
+
+[/usr/lib/../lib64/crt1.o succeeded
+/usr/lib/../lib64/crti.o succeeded
+/usr/lib/../lib64/crtn.o succeeded]
+
+grep -B1 '^ /usr/include' dummy.log
+
+[#include <...> search starts here:
+ /usr/include]
+
+grep 'SEARCH.*/usr/lib' dummy.log |sed 's|; |\n|g'
+
+[SEARCH_DIR("=/tools/x86_64-unknown-linux-gnu/lib64")
+SEARCH_DIR("/usr/lib")
+SEARCH_DIR("/lib")
+SEARCH_DIR("=/tools/x86_64-unknown-linux-gnu/lib");]
+
+grep "/lib.*/libc.so.6 " dummy.log
+
+[attempt to open /lib64/libc.so.6 succeeded]
+
+grep found dummy.log
+
+[found ld-linux-x86-64.so.2 at /lib64/ld-linux-x86-64.so.2]
+
+rm -v dummy.c a.out dummy.log
+
+----------
+
+cd zlib-1.2.8
+
+CFLAGS="-mtune=generic -Os -pipe" CXXFLAGS="-mtune=generic -Os -pipe -fno-exceptions -fno-rtti" ./configure --prefix=/usr
+
+find . -name Makefile -type f -exec sed -i 's/-O3//g' {} \;
+
+make
+make install
+
+
+cd file-5.24
+
+CFLAGS="-mtune=generic -Os -pipe" CXXFLAGS="-mtune=generic -Os -pipe -fno-exceptions -fno-rtti" ./configure --prefix=/usr
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+
+
+cd binutils-2.25.1
+
+mkdir ../binutils-build
+cd ../binutils-build
+
+CFLAGS="-mtune=generic -Os -pipe" CXXFLAGS="-mtune=generic -Os -pipe" ../binutils-2.25.1/configure --prefix=/usr --enable-shared --disable-werror
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make tooldir=/usr
+make tooldir=/usr install
+
+
+cd gmp-6.0.0
+
+mv config{fsf,}.guess
+mv config{fsf,}.sub
+
+ABI=64 CFLAGS="-mtune=generic -Os -pipe" CXXFLAGS="-mtune=generic -Os -pipe" ./configure --prefix=/usr --enable-cxx --disable-static --docdir=/usr/share/doc/gmp-6.0.0a
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+
+
+cd mpfr-3.1.3
+
+patch -Np1 -i ../mpfr-3.1.3-upstream_fixes-1.patch
+
+CFLAGS="-mtune=generic -Os -pipe" CXXFLAGS="-mtune=generic -Os -pipe" ./configure --prefix=/usr --disable-static --enable-thread-safe --docdir=/usr/share/doc/mpfr-3.1.3
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+
+
+cd mpc-1.0.3
+
+CFLAGS="-mtune=generic -Os -pipe" CXXFLAGS="-mtune=generic -Os -pipe" ./configure --prefix=/usr --disable-static --docdir=/usr/share/doc/mpc-1.0.3
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+
+
+http://isl.gforge.inria.fr/isl-0.15.tar.xz
+http://isl.gforge.inria.fr/isl-0.14.1.tar.xz
+
+cd isl-0.14.1
+
+CFLAGS="-mtune=generic -Os -pipe" CXXFLAGS="-mtune=generic -Os -pipe" ./configure --prefix=/usr --disable-static
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+
+
+http://www.bastoul.net/cloog/pages/download/cloog-0.18.4.tar.gz
+
+cd cloog-0.18.4
+
+CFLAGS="-mtune=generic -Os -pipe" CXXFLAGS="-mtune=generic -Os -pipe" ./configure --prefix=/usr --disable-static --with-isl=system
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+
+
+cd gcc-5.2.0
+
+sed -i 's@lib/ld-linux.so.2@lib32/ld-linux.so.2@' gcc/config/i386/linux64.h
+sed -i 's@lib64/ld-linux-x86-64.so.2@lib/ld-linux-x86-64.so.2@' gcc/config/i386/linux64.h
+
+mkdir ../gcc-build
+cd ../gcc-build
+
+SED=sed CFLAGS="-mtune=generic -Os -pipe" CXXFLAGS="-mtune=generic -Os -pipe" ../gcc-5.2.0/configure --prefix=/usr --enable-languages=c,c++ --disable-multilib --disable-bootstrap --with-system-zlib --libexecdir=/usr/lib --enable-frame-pointer
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+find . -name config.status -type f -exec sed -i 's/-O2//g' {} \;
+
+make [25m0.344s]
+make install
+
+ln -sv ../usr/bin/cpp /lib
+ln -sv gcc /usr/bin/cc
+
+install -v -dm755 /usr/lib/bfd-plugins
+ln -sfv ../../lib/gcc/$(gcc -dumpmachine)/5.2.0/liblto_plugin.so /usr/lib/bfd-plugins/
+
+mkdir -pv /usr/share/gdb/auto-load/usr/lib
+mv -v /usr/lib/*gdb.py /usr/share/gdb/auto-load/usr/lib
+
+rm /lib64
+rm /usr/lib64
+ldconfig
+
+edit /usr/lib/*.la remove lib64
+
+----------
+
+echo 'int main(){}' > dummy.c
+cc dummy.c -v -Wl,--verbose &> dummy.log
+readelf -l a.out | grep ': /lib'
+
+[Requesting program interpreter: /lib/ld-linux-x86-64.so.2]
+
+grep -o '/usr/lib.*/crt[1in].*succeeded' dummy.log
+
+[/usr/lib/gcc/x86_64-unknown-linux-gnu/5.2.0/../../../crt1.o succeeded
+/usr/lib/gcc/x86_64-unknown-linux-gnu/5.2.0/../../../crti.o succeeded
+/usr/lib/gcc/x86_64-unknown-linux-gnu/5.2.0/../../../crtn.o succeeded]
+
+grep -B4 '^ /usr/include' dummy.log
+
+[/usr/lib/gcc/x86_64-unknown-linux-gnu/5.2.0/include
+ /usr/local/include
+ /usr/lib/gcc/x86_64-unknown-linux-gnu/5.2.0/include-fixed
+ /usr/include]
+
+grep 'SEARCH.*/usr/lib' dummy.log |sed 's|; |\n|g'
+
+[SEARCH_DIR("/usr/x86_64-unknown-linux-gnu/lib64")
+SEARCH_DIR("/usr/local/lib64")
+SEARCH_DIR("/lib64")
+SEARCH_DIR("/usr/lib64")
+SEARCH_DIR("/usr/x86_64-unknown-linux-gnu/lib")
+SEARCH_DIR("/usr/local/lib")
+SEARCH_DIR("/lib")
+SEARCH_DIR("/usr/lib");]
+
+grep "/lib.*/libc.so.6 " dummy.log
+
+[attempt to open /lib/libc.so.6 succeeded]
+
+grep found dummy.log
+
+[found ld-linux-x86-64.so.2 at /lib/ld-linux-x86-64.so.2]
+
+rm -v dummy.c a.out dummy.log
+
+----------
+
+export PATH=/usr/local/bin:/bin:/usr/bin:/usr/local/sbin:/sbin:/usr/sbin:/tools/bin
+
+cd bzip2-1.0.6
+
+Edit Makefile-libbz2_so
+CC=gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe
+CFLAGS=-fpic -fPIC -Wall -Winline $(BIGFILES)
+
+sed -i 's@\(ln -s -f \)$(PREFIX)/bin/@\1@' Makefile
+sed -i "s@(PREFIX)/man@(PREFIX)/share/man@g" Makefile
+
+make -f Makefile-libbz2_so
+make clean
+
+Edit Makefile
+CC=gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe
+CFLAGS=-Wall -Winline $(BIGFILES)
+
+make
+make PREFIX=/usr/local install
+
+cp bzip2-shared /usr/local/bin/bzip2
+cp -a libbz2.so* /usr/local/lib
+cd /usr/local/lib
+ln -s libbz2.so.1.0 libbz2.so
+cd ../bin
+rm {bunzip2,bzcat}
+ln -s bzip2 bunzip2
+ln -s bzip2 bzcat
+
+
+cd pkg-config-0.28
+
+CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" ./configure --prefix=/usr/local --with-pc-path="/usr/local/lib/pkgconfig:/usr/lib/pkgconfig:/usr/local/share/pkgconfig:/usr/share/pkgconfig" --with-internal-glib --disable-host-tool --docdir=/usr/share/doc/pkg-config-0.28
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+
+
+cd ncurses-6.0
+
+sed -i '/LIBTOOL_INSTALL/d' c++/Makefile.in
+
+CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" ./configure --prefix=/usr --mandir=/usr/share/man --with-shared --without-debug --without-normal --enable-pc-files --enable-overwrite [--with-termlib --with-ticlib]
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+
+
+cd attr-2.4.47
+
+sed -i -e 's|/@pkg_name@|&-@pkg_version@|' include/builddefs.in
+sed -i -e "/SUBDIRS/s|man2||" man/Makefile
+
+CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" ./configure --prefix=/usr/local --disable-static
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+find . -name builddefs -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install install-dev install-lib
+chmod 755 /usr/local/lib/libattr.so
+
+
+cd acl-2.2.52
+
+sed -i -e 's|/@pkg_name@|&-@pkg_version@|' include/builddefs.in
+
+sed -i "s:| sed.*::g" test/{sbits-restore,cp,misc}.test
+
+sed -i -e "/TABS-1;/a if (x > (TABS-1)) x = (TABS-1);" libacl/__acl_to_any_text.c
+
+CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" ./configure --prefix=/usr/local --libexecdir=/usr/local/lib --disable-static
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+find . -name builddefs -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install install-dev install-lib
+chmod 755 /usr/local/lib/libacl.so
+
+
+cd libcap-2.24
+
+edit Make.Rules
+CC := gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe
+CFLAGS := -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64
+
+make
+make RAISE_SETFCAP=no prefix=/usr/local install
+chmod 755 /usr/local/lib/libcap.so
+
+
+cd sed-4.2.2
+
+CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" ./configure --prefix=/usr/local --disable-acl
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+
+
+e2fsprogs-1.42.13
+
+mkdir build
+cd build
+
+LIBS=-L/tools/lib CFLAGS=-I/tools/include PKG_CONFIG_PATH=/tools/lib/pkgconfig CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" ../configure --prefix=/usr --bindir=/bin --with-root-prefix="" --enable-elf-shlibs --disable-libblkid --disable-libuuid --disable-uuidd --disable-fsck
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+make install-libs
+chmod u+w /usr/lib/{libcom_err,libe2p,libext2fs,libss}.a
+
+
+cd coreutils-8.24
+
+patch -Np1 -i ../coreutils-8.24-i18n-1.patch 
+sed -i '/tests\/misc\/sort.pl/ d' Makefile.in
+
+FORCE_UNSAFE_CONFIGURE=1 CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" ./configure --prefix=/usr/local --enable-no-install-program=kill,uptime --libexecdir=/usr/local/lib
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+
+
+cd m4-1.4.17
+
+CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" ./configure --prefix=/usr/local
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+
+
+cd flex-2.5.39
+
+sed -i -e '/test-bison/d' tests/Makefile.in
+
+CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" ./configure --prefix=/usr/local --disable-static
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+cd /usr/local/bin
+ln -s flex lex
+
+
+cd bison-3.0.4
+
+CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" ./configure --prefix=/usr/local --docdir=/usr/share/doc/bison-3.0.4
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+
+
+cd grep-2.21
+
+sed -i -e '/tp++/a  if (ep <= tp) break;' src/kwset.c
+
+CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" ./configure --prefix=/usr/local
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+
+
+cd readline-6.3
+
+patch -Np1 -i ../readline-6.3-upstream_fixes-3.patch
+
+sed -i '/MV.*old/d' Makefile.in
+sed -i '/{OLDSUFF}/c:' support/shlib-install
+
+CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" ./configure --prefix=/usr/local --disable-static --docdir=/usr/share/doc/readline-6.3
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make SHLIB_LIBS=-lncurses
+make SHLIB_LIBS=-lncurses install
+
+
+cd bash-4.3.30
+
+patch -Np1 -i ../bash-4.3.30-upstream_fixes-2.patch
+
+CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" ./configure --prefix=/usr/local --docdir=/usr/share/doc/bash-4.3.30 --without-bash-malloc --with-installed-readline
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+
+cd /bin
+rm bash
+ln -s /usr/local/bin/bash bash
+exec /bin/bash --login +h
+
+
+cd bc-1.06.95
+
+patch -Np1 -i ../bc-1.06.95-memory_leak-1.patch
+
+CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" ./configure --prefix=/usr/local --with-readline
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+
+
+cd libtool-2.4.6
+
+CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" ./configure --prefix=/usr/local --disable-static
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+
+
+cd gdbm-1.11
+
+CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" ./configure --prefix=/usr/local --disable-static --enable-libgdbm-compat
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+
+
+cd expat-2.1.0
+
+CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" ./configure --prefix=/usr/local --disable-static
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+
+
+cd perl-5.22.0
+
+cp tc /etc/hosts
+
+export BUILD_ZLIB=False
+export BUILD_BZIP2=0
+
+sh Configure -des -Dcc="gcc -mtune=generic -Os -pipe" -Dprefix=/usr/local -Dvendorprefix=/usr/local -Dman1dir=/usr/local/share/man/man1 -Dman3dir=/usr/local/share/man/man3 -Dpager="/usr/bin/less -isR" -Duseshrplib
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make [3m34.792s]
+make install
+unset BUILD_ZLIB BUILD_BZIP2
+
+rm /usr/bin/perl
+rm /bin/{cat,echo,pwd,stty}
+cd /bin
+ln -s /usr/local/bin/cat cat
+ln -s /usr/local/bin/echo echo
+ln -s /usr/local/bin/pwd pwd
+ln -s /usr/local/bin/stty stty
+
+
+cd XML-Parser-2.44
+
+perl Makefile.PL
+
+make
+make install
+
+
+cd autoconf-2.69
+
+CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" ./configure --prefix=/usr/local
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+
+
+cd automake-1.15
+
+sed -i 's:/\\\${:/\\\$\\{:' bin/automake.in
+
+CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" ./configure --prefix=/usr/local
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+
+
+cd diffutils-3.3
+
+sed -i 's:= @mkdir_p@:= /bin/mkdir -p:' po/Makefile.in.in
+
+CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" ./configure --prefix=/usr/local
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+
+
+cd gawk-4.1.3
+
+CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" ./configure --prefix=/usr/local --libexecdir=/usr/local/lib/gawk
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+
+
+cd findutils-4.4.2
+
+CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" ./configure --prefix=/usr/local --localstatedir=/var/lib/locate --libexecdir=/usr/local/lib/findutils
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+
+[modify /urs/local/bin/sort -> /bin/sort in updatedb for buysbox]
+
+
+cd gettext-0.19.5.1
+
+CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" ./configure --prefix=/usr/local --disable-static
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make [2m56.044s]
+make install
+
+
+cd intltool-0.51.0
+
+sed -i 's:\\\${:\\\$\\{:' intltool-update.in
+
+CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" ./configure --prefix=/usr/local
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+
+
+cd gperf-3.0.4
+
+CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" ./configure --prefix=/usr/local
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+
+
+cd groff-1.22.3
+
+PAGE=A4 CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" ./configure --prefix=/usr/local
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+
+
+cd xz-5.2.1
+
+CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" ./configure --prefix=/usr/local --disable-static
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+
+
+cd gzip-1.6
+
+CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" ./configure --prefix=/usr/local
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+
+
+cd make-4.1
+
+CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" ./configure --prefix=/usr/local
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+
+
+cd patch-2.7.5
+
+CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" ./configure --prefix=/usr/local
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+
+
+cd tar-1.28
+
+FORCE_UNSAFE_CONFIGURE=1 CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" ./configure --prefix=/usr/local --libexecdir=/usr/local/lib/tar
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+
+
+cd texinfo-6.0
+
+CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" ./configure --prefix=/usr/local
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+make TEXMF=/usr/local/share/texmf install-tex
+
+
+cd util-linux-2.27
+
+add tty:x:4: to /etc/group
+exec /usr/local/bin/bash --login +h
+
+mkdir -p /var/lib/hwclock
+
+ADJTIME_PATH=/var/lib/hwclock/adjtime CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" ./configure --docdir=/usr/share/doc/util-linux-2.27 --disable-chfn-chsh --disable-login --disable-nologin --disable-su --disable-setpriv --disable-runuser --disable-pylibmount --disable-static --without-python --without-systemd --without-systemdsystemunitdir --libexecdir=/lib
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+
+----------
+
+cd gmp-6.0.0
+
+mv config{fsf,}.guess
+mv config{fsf,}.sub
+
+ABI=64 CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe" ./configure --prefix=/usr/local --enable-cxx --disable-static --docdir=/usr/share/doc/gmp-6.0.0a
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+find . -name Makefile -type f -exec sed -i 's/-mtune=k8//g' {} \;
+find . -name Makefile -type f -exec sed -i 's/-march=k8//g' {} \;
+find . -name gmp.h -type f -exec sed -i 's/-O2//g' {} \;
+find . -name gmp.h -type f -exec sed -i 's/-mtune=k8//g' {} \;
+find . -name gmp.h -type f -exec sed -i 's/-march=k8//g' {} \;
+
+make
+make install
+
+
+cd mpfr-3.1.3
+
+patch -Np1 -i ../mpfr-3.1.3-upstream_fixes-1.patch
+
+CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe" ./configure --prefix=/usr/local --disable-static --enable-thread-safe --docdir=/usr/share/doc/mpfr-3.1.3 --with-gmp=/usr/local
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+
+
+cd mpc-1.0.3
+
+CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe" ./configure --prefix=/usr/local --disable-static --docdir=/usr/share/doc/mpc-1.0.3 --with-gmp=/usr/local --with-mpfr=/usr/local
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+
+
+cd isl-0.14.1
+
+CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe" ./configure --prefix=/usr/local --disable-static --with-gmp-prefix=/usr/local
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+
+mkdir -pv /usr/local/share/gdb/auto-load/usr/lib
+mv -v /usr/local/lib/libisl.so.13.1.1-gdb.py /usr/local/share/gdb/auto-load/usr/lib
+
+
+cd cloog-0.18.4
+
+CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe" ./configure --prefix=/usr/local --disable-static --with-isl=system --with-isl-prefix=/usr/local --with-gmp-prefix=/usr/local
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+
+
+cd binutils-2.25.1
+
+mkdir ../binutils-build
+cd ../binutils-build
+
+CFLAGS="-mtune=generic -Os -pipe" CXXFLAGS="-mtune=generic -Os -pipe" ../binutils-2.25.1/configure --prefix=/usr/local --enable-shared --disable-werror --with-mpc=/usr/local --with-mpfr=/usr/local --with-gmp=/usr/local [--with-cloog=/usr/local --with-isl=/usr/local]
+
+[checking for version 0.12 of ISL... no
+configure: error: Unable to find a usable ISL]
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make tooldir=/usr/local [2m44.778s]
+make tooldir=/usr/local install
+
+
+cd gcc-5.2.0
+
+sed -i 's@lib/ld-linux.so.2@lib32/ld-linux.so.2@' gcc/config/i386/linux64.h
+sed -i 's@lib64/ld-linux-x86-64.so.2@lib/ld-linux-x86-64.so.2@' gcc/config/i386/linux64.h
+
+ln -sv lib /usr/local/lib64
+
+mkdir ../gcc-build
+cd ../gcc-build
+
+SED=sed CFLAGS="-mtune=generic -Os -pipe" CXXFLAGS="-mtune=generic -Os -pipe" ../gcc-5.2.0/configure --prefix=/usr/local --enable-languages=c,c++ --disable-multilib --disable-bootstrap --with-system-zlib --libexecdir=/usr/local/lib --enable-frame-pointer --with-mpfr=/usr/local --with-gmp=/usr/local --with-cloog=/usr/local --with-isl=/usr/local
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+find . -name config.status -type f -exec sed -i 's/-O2//g' {} \;
+
+make [21m32.039s]
+make install
+
+cd /usr/local/bin
+ln -s gcc cc
+cd /usr/local/lib
+ln -s ../bin/cpp ./
+
+install -v -dm755 /usr/local/lib/bfd-plugins
+cd /usr/local/lib/bfd-plugins
+ln -s ../gcc/x86_64-unknown-linux-gnu/5.2.0/liblto_plugin.so ./
+
+mkdir -pv /usr/local/share/gdb/auto-load/usr/lib
+mv -v /usr/local/lib/libstdc++.so.6.0.21-gdb.py /usr/local/share/gdb/auto-load/usr/lib
+
+rm /usr/local/lib64
+
+remove lib64 from /usr/local/lib/*.la
+
+----------
+
+[remove binutils, gmp, mpfr, mpc, isl, cloog from /usr]
+[remove gcc, except libgcc, libstdc++ for /usr]
+[remove libgcc, libstdc++ for /usr/local]
+
+[for F in `cat files_list`; do rm "$F"; done]
+
+----------
+
+cd util-linux-2.27
+
+ADJTIME_PATH=/var/lib/hwclock/adjtime CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" ./configure --prefix=/usr/local --docdir=/usr/local/share/doc/util-linux-2.27 --disable-chfn-chsh --disable-login --disable-nologin --disable-su --disable-setpriv --disable-runuser --disable-pylibmount --disable-static --without-python --without-systemd --without-systemdsystemunitdir --libexecdir=/usr/local/lib --localstatedir=/var
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+
+[remove files to match base/extension setup]
+
+
+cd e2fsprogs-1.42.13
+
+mkdir build
+cd build
+
+CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" ../configure --prefix=/usr/local --enable-elf-shlibs --disable-libblkid --disable-libuuid --disable-uuidd --disable-fsck
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+make install-libs
+chmod u+w /usr/local/lib/{libcom_err,libe2p,libext2fs,libss}.a
+
+[remove files to match base/extension setup]
+
+
+cd file-5.24
+
+CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" ./configure --prefix=/usr/local
+
+find . -name Makefile -type f -exec sed -i 's/-O2//g' {} \;
+
+make
+make install
+
+[remove file from /usr]
+
+cd /usr/bin
+ln -s ../local/bin/file ./
+

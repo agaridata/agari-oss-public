@@ -1,0 +1,17 @@
+tce-load -i 
+
+cd squashfs4.3
+
+cd squashfs-tools
+sed -i 's@attr/xattr.h@sys/xattr.h@' *.c
+
+patch -p1 < ../../squashfs_block_size_patch.diff
+patch -p1 < ../../squashfs-perms.diff
+
+Edit Makefile
+#XATTR_DEFAULT = 1
+CFLAGS ?= 
+
+make CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe -fno-exceptions -fno-rtti"
+
+make CC="gcc -flto -fuse-linker-plugin -mtune=generic -Os -pipe" CXX="g++ -flto -fuse-linker-plugin -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" install

@@ -1,0 +1,11 @@
+--- squashfs-tools/mksquashfs.c.old	2011-03-20 19:53:16.000000000 +0000
++++ squashfs-tools/mksquashfs.c	2011-03-20 19:53:26.000000000 +0000
+@@ -4964,7 +4964,7 @@
+ 	if(stat(argv[source + 1], &buf) == -1) {
+ 		if(errno == ENOENT) { /* Does not exist */
+ 			fd = open(argv[source + 1], O_CREAT | O_TRUNC | O_RDWR,
+-				S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
++				S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
+ 			if(fd == -1) {
+ 				perror("Could not create destination file");
+ 				exit(1);
